@@ -55,3 +55,7 @@ sudo systemctl restart mysql
 
 
 sudo ufw allow 3306/tcp
+
+# El script bueno.py
+Ese scripr bueno.py se debe ejecutar en el servidor junto con mysql y la base de datos.
+
