@@ -14,9 +14,10 @@ from datetime import datetime, timedelta
 from customtkinter import CTk, CTkToplevel, CTkFrame, CTkLabel, CTkEntry, CTkButton, CTkTextbox
 import json
 import datetime
+import webbrowser
 
 app = CTk()
-app.title("Panel Control")
+app.title("DoblenetDesktop - v0.2")
 app.geometry("1500x768")
 
 set_appearance_mode("dark")
@@ -53,7 +54,11 @@ def load_images():
         "lupa" : CTkImage(dark_image=Image.open("icons/validando-billete.png"), size=(100,100)),
         "antena" : CTkImage(dark_image=Image.open("icons/antena-parabolica.png"), size=(50,50)),
         "editar" : CTkImage(dark_image=Image.open("icons/editar-informacion.png"), size=(150,150)),
-        "herramientas" : CTkImage(dark_image=Image.open("icons/herramienta_red.png"), size=(50,50))
+        "herramientas" : CTkImage(dark_image=Image.open("icons/herramienta_red.png"), size=(50,50)),
+        "configuracion-red" : CTkImage(dark_image=Image.open("icons/configuracion-red.png"), size=(150,150)),
+        "radar-de-velocidad" : CTkImage(dark_image=Image.open("icons/radar-de-velocidad.png"), size=(50,50)),
+        "desbloqueado" : CTkImage(dark_image=Image.open("icons/desbloqueado.png"), size=(50,50)),
+        "reiniciar" : CTkImage(dark_image=Image.open("icons/reiniciar.png"), size=(50,50))
 
     }
     return images
@@ -712,37 +717,50 @@ def crearUsuario():
 
 
 def verPagos():
+        
+    
+    def obtener_datos(filtro_reciente=False, filtro_mensualidad=False):
+        try:
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor(dictionary=True)
+            if filtro_reciente:
+                query = "SELECT * FROM pagos ORDER BY FechaPago DESC"
+            elif filtro_mensualidad:
+                query = "SELECT * FROM pagos ORDER BY Mensualidad DESC"
+            else:
+                query = "SELECT * FROM pagos"
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return rows
+        except mysql.connector.Error as err:
+            print(f"Error: {err}")
+            return []
+
+    def actualizar_treeview(filtro_reciente=False, filtro_mensualidad=False):
+        for item in tree.get_children():
+            tree.delete(item)
+        rows = obtener_datos(filtro_reciente, filtro_mensualidad)
+        for row in rows:
+            tree.insert("", "end", values=(row["id"], row["NombreCliente"], row["Mensualidad"], row["FechaPago"]))
+
     crearUsuarioWindow = CTkToplevel(app)
     crearUsuarioWindow.title("Ver Pago")
     crearUsuarioWindow.geometry("1000x600")
     crearUsuarioWindow.resizable(False, False)
-    
+
     imagenes = load_images()
 
     # Definimos los frames
-    frame1 = CTkFrame(master=crearUsuarioWindow, corner_radius=0, fg_color="black")
+    frame1 = CTkFrame(master=crearUsuarioWindow, corner_radius=0, fg_color=color_negro)
     frame2 = CTkFrame(master=crearUsuarioWindow, corner_radius=0, fg_color=color_azul)
-    
+
     recibo = CTkLabel(master=frame2, text="", image=imagenes["pago"])
+    recibo.place(relx=0.2, rely=0.1)
 
-    recibo.place(
-        relx=0.2,
-        rely=0.1
-    )
-
-    
-    frame1.place(
-        relx=0.0,
-        rely=0.0,
-        relwidth=0.7,
-        relheight=1.0
-    )
-    frame2.place(
-        relx=0.7,
-        rely=0.0,
-        relwidth=0.3,
-        relheight=1.0
-    )
+    frame1.place(relx=0.0, rely=0.0, relwidth=0.7, relheight=1.0)
+    frame2.place(relx=0.7, rely=0.0, relwidth=0.3, relheight=1.0)
 
     # Crear el Treeview en frame1
     tree = ttk.Treeview(frame1, columns=("id", "NombreCliente", "Mensualidad", "FechaPago"), show='headings')
@@ -750,7 +768,7 @@ def verPagos():
     tree.heading("NombreCliente", text="DNA")
     tree.heading("Mensualidad", text="Mensualidad")
     tree.heading("FechaPago", text="FechaPago")
-    
+
     # Ajustar el ancho de las columnas
     tree.column("id", width=100)
     tree.column("NombreCliente", width=100)
@@ -759,22 +777,16 @@ def verPagos():
 
     tree.pack(fill=tk.BOTH, expand=True)
 
-    # Conectar a la base de datos y obtener los datos
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM pagos"
-        cursor.execute(query)
-        rows = cursor.fetchall()
+    # Crear un botón para filtrar los pagos más recientes
+    btn_filtrar_recientes = CTkButton(master=frame2, text="Mostrar más recientes", command=lambda: actualizar_treeview(filtro_reciente=True))
+    btn_filtrar_recientes.place(relx=0.5, rely=0.8, anchor=tk.CENTER)
 
-        # Insertar los datos en el Treeview
-        for row in rows:
-            tree.insert("", "end", values=(row["id"], row["NombreCliente"], row["Mensualidad"], row["FechaPago"]))
+    # Crear un botón para filtrar por mensualidad más alta
+    btn_filtrar_mensualidad = CTkButton(master=frame2, text="Mensualidad más alta", command=lambda: actualizar_treeview(filtro_mensualidad=True))
+    btn_filtrar_mensualidad.place(relx=0.5, rely=0.9, anchor=tk.CENTER)
 
-        cursor.close()
-        conn.close()
-    except mysql.connector.Error as err:
-        print(f"Error: {err}")
+    # Llenar el Treeview con los datos iniciales
+    actualizar_treeview()
 
     crearUsuarioWindow.mainloop()
 
@@ -1169,6 +1181,10 @@ def generar_recibo(id_factura):
     except IOError as e:
         print(f"Error al abrir el archivo de logo: {e}")
 
+def enDesarrollo():
+    pregunta = messagebox.askyesno("Desarrollo", "Funcion en desarrollo version 0.2. Corrobora si tenemos un nuevo lanzamiento. Presiona yes")
+    if pregunta == True:
+        webbrowser.open("https://github.com/ricardoescobedo2003/doblenetDesktop/releases")
 
 def crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, id_transaccion, archivo_salida):
     # Crear una nueva imagen en blanco
@@ -1226,6 +1242,65 @@ def crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, i
     imagen.save(archivo_salida)
     messagebox.showinfo("Recibo", f"Recibo de pago guardado como {archivo_salida}")
 
+def menuConfiguracionRed():
+    menuConfiguracionRed = CTkToplevel(app)
+    menuConfiguracionRed.title("Herramientas Red")
+    menuConfiguracionRed.geometry("900x400")
+    menuConfiguracionRed.resizable(False, False)
+
+    images = load_images()
+
+
+    frame2 = CTkFrame(master=menuConfiguracionRed, corner_radius=0, fg_color=color_azul)
+    recibo = CTkLabel(master=frame2, text="", image=images["configuracion-red"])
+
+    recibo.place(relx=0.2, rely=0.2)    
+    frame2.place(relx=0.7, rely=0.0, relwidth=0.3, relheight=1.0)
+
+
+    btnCambiarVelocidad = CTkButton(
+        master=menuConfiguracionRed,
+        text="Cambio de velocidad",
+        width=150,
+        height=20,
+        image=images["radar-de-velocidad"],
+        command=enDesarrollo
+    )
+    btnCambiarVelocidad.grid(
+        row=0,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    btnDesbloquearCliente = CTkButton(
+        master=menuConfiguracionRed,
+        text="Desbloquear Cliente",
+        width=150,
+        height=20,
+        image=images["desbloqueado"],
+        command=enDesarrollo
+    )
+    btnDesbloquearCliente.grid(
+        row=0,
+        column=1,
+        padx=10,
+        pady=10
+    )
+    btnReiniciar = CTkButton(
+        master=menuConfiguracionRed,
+        text="Reiniciar Microtik",
+        width=170,
+        height=20,
+        image=images["reiniciar"],
+        command=enDesarrollo
+    )
+    btnReiniciar.grid(
+        row=1,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    menuConfiguracionRed.mainloop()
 
 # DEFINIMOS LOS BOTONES DE ACCION DENTRO DEL BANNER
 crear_usuarioBtn = CTkButton(
@@ -1251,13 +1326,15 @@ ver_pago_btn = CTkButton(
 crear_recibo_btn = CTkButton(
     master=banner,
     text="Herramientas Red",
-    image=images["herramientas"]
+    image=images["herramientas"],
+    command=menuConfiguracionRed
 )
 
 configuracion = CTkButton(
     master=banner,
     text="Ajustes",
-    image=images["configuraciones"]
+    image=images["configuraciones"],
+    command=enDesarrollo
 )
 
 # DEFINIMOS LAS POSICIONES DE LOS WIDGETS
