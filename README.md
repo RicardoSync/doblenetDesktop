@@ -55,3 +55,10 @@ sudo systemctl restart mysql
 
 
 sudo ufw allow 3306/tcp
+
+
+
+# Base dedatos
+Para que el sistema funcione de manera correcta, importa la base de datos que esta en BD a la base de datos alpha de mysql
+con el comando:
+mysql -u dni -p alpha < alpha.sql
