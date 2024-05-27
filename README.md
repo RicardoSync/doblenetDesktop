@@ -56,6 +56,15 @@ sudo systemctl restart mysql
 
 sudo ufw allow 3306/tcp
 
+<<<<<<< HEAD
 # El script bueno.py
 Ese scripr bueno.py se debe ejecutar en el servidor junto con mysql y la base de datos.
 
+=======
+
+
+# Base dedatos
+Para que el sistema funcione de manera correcta, importa la base de datos que esta en BD a la base de datos alpha de mysql
+con el comando:
+mysql -u dni -p alpha < alpha.sql
+>>>>>>> ba05e18049d3d576658f77e9b06d5d2dc9b66407
