@@ -2,7 +2,6 @@ import mysql.connector
 from datetime import datetime
 import schedule
 import time
-import paramiko
 
 # Configuración de la conexión a la base de datos
 db_config = {
@@ -12,55 +11,24 @@ db_config = {
     'database': 'alpha'
 }
 
-def adjust_bandwidth(target_ip, new_max_limit, hostname, username, password):
-    # Puerto SSH, generalmente es 22
-    port = 22
-
-    # Comando para ajustar el ancho de banda utilizando la IP
-    command = f'/queue simple set [find target="{target_ip}/32"] max-limit={new_max_limit}'
-
-    # Crear una instancia del cliente SSH
-    client = paramiko.SSHClient()
-
-    # Agregar automáticamente la clave del servidor si no está en la lista de known hosts
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    try:
-        # Conectarse al dispositivo
-        client.connect(hostname, port, username, password)
-
-        # Ejecutar el comando para ajustar el ancho de banda
-        stdin, stdout, stderr = client.exec_command(command)
-
-        # Leer y mostrar la salida del comando, si es necesario
-        output = stdout.read().decode()
-        errors = stderr.read().decode()
-
-        if output:
-            print(f"Output: {output}")
-        if errors:
-            print(f"Errors: {errors}")
-
-    except Exception as e:
-        print(f"Error: {e}")
-
-    finally:
-        # Cerrar la conexión
-        client.close()
-
-
 # Función para activar clientes
 def activar(id, nombre, ip, velocidad):
     print(f"Activando: ID={id}, Nombre={nombre}, IP={ip}, Velocidad={velocidad}")
 
 # Función para suspender clientes
-def suspender(id, nombre, ip):
-    print(f"Suspender: ID={id}, Nombre={nombre}, IP={ip}")
-    new_max_limit = "1k/1k"
-    hostname = "122.122.125.1"
-    username = "admin"
-    password = "070523"
-    adjust_bandwidth(ip, new_max_limit, hostname, username, password)
+def suspender(id, nombre):
+    print(f"Suspender: ID={id}, Nombre={nombre}")
+
+    cliente_id = id
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    estado = "suspendido"
+    update_estado = "UPDATE clientes SET estado = %s WHERE id = %s"
+    cursor.execute(update_estado, (estado, cliente_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 # Función principal que se ejecuta cada 10 segundos
 def verificar_pagos():
@@ -100,7 +68,7 @@ def verificar_pagos():
             if pago:
                 activar(id_cliente, nombre, ip, velocidad)
             else:
-                suspender(id_cliente, nombre, ip)
+                suspender(id_cliente, nombre)
 
     finally:
         # Cerrar la conexión a la base de datos

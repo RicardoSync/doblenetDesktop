@@ -15,6 +15,10 @@ from customtkinter import CTk, CTkToplevel, CTkFrame, CTkLabel, CTkEntry, CTkBut
 import json
 import datetime
 import webbrowser
+import paramiko
+from fpdf import FPDF
+import tkinter as tk
+from tkcalendar import DateEntry
 
 app = CTk()
 app.title("DoblenetDesktop - v0.2")
@@ -50,7 +54,7 @@ def load_images():
         "configuraciones": CTkImage(dark_image=Image.open("icons/configuraciones.png"), size=(50, 50)),
         "fondo" : CTkImage(dark_image=Image.open("icons/fondo.png"), size=(350,350)),
         "usuario" : CTkImage(dark_image=Image.open("icons/usuario.png"), size=(150,150)),
-        "pago" : CTkImage(dark_image=Image.open("icons/pago.png"), size=(150,150)),
+        "pago" : CTkImage(dark_image=Image.open("icons/pago.png"), size=(100,100)),
         "lupa" : CTkImage(dark_image=Image.open("icons/validando-billete.png"), size=(100,100)),
         "antena" : CTkImage(dark_image=Image.open("icons/antena-parabolica.png"), size=(50,50)),
         "editar" : CTkImage(dark_image=Image.open("icons/editar-informacion.png"), size=(150,150)),
@@ -58,7 +62,8 @@ def load_images():
         "configuracion-red" : CTkImage(dark_image=Image.open("icons/configuracion-red.png"), size=(150,150)),
         "radar-de-velocidad" : CTkImage(dark_image=Image.open("icons/radar-de-velocidad.png"), size=(50,50)),
         "desbloqueado" : CTkImage(dark_image=Image.open("icons/desbloqueado.png"), size=(50,50)),
-        "reiniciar" : CTkImage(dark_image=Image.open("icons/reiniciar.png"), size=(50,50))
+        "reiniciar" : CTkImage(dark_image=Image.open("icons/reiniciar.png"), size=(50,50)),
+        "servidor" : CTkImage(dark_image=Image.open("icons/servidor-de-datos.png"), size=(150,150))
 
     }
     return images
@@ -136,8 +141,11 @@ def registrarPago():
         cursor.execute("INSERT INTO pagos (NombreCliente, Mensualidad, FechaPago) VALUES (%s, %s, %s)", (cliente_id, monto, fecha_pago))
         fecha_proximo_pago = fecha_pago + timedelta(days=31)
 
+        estado = "activado"
         sql_update = "UPDATE clientes SET ProximoPago = %s WHERE id = %s"
         cursor.execute(sql_update, (fecha_proximo_pago, cliente_id))
+        update_estado = "UPDATE clientes SET estado = %s WHERE id = %s"
+        cursor.execute(update_estado ,(estado, cliente_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -360,7 +368,8 @@ def crearUsuario():
         FechaInstalacion =  datetime.date.today()
         ProximoPago = FechaInstalacion + timedelta(days=31)
         Mensualidad = entMensualidad.get()
-        crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad)
+        estado = "activado"
+        crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad, estado)
 
     def salir():
         crearUsuarioWindow.destroy()
@@ -717,19 +726,24 @@ def crearUsuario():
 
 
 def verPagos():
-        
-    
-    def obtener_datos(filtro_reciente=False, filtro_mensualidad=False):
+
+    def obtener_datos(fecha_inicio=None, fecha_fin=None, filtro_reciente=False, filtro_mensualidad=False):
         try:
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor(dictionary=True)
-            if filtro_reciente:
+            if fecha_inicio and fecha_fin:
+                query = "SELECT * FROM pagos WHERE FechaPago BETWEEN %s AND %s"
+                params = (fecha_inicio, fecha_fin)
+            elif filtro_reciente:
                 query = "SELECT * FROM pagos ORDER BY FechaPago DESC"
+                params = ()
             elif filtro_mensualidad:
                 query = "SELECT * FROM pagos ORDER BY Mensualidad DESC"
+                params = ()
             else:
                 query = "SELECT * FROM pagos"
-            cursor.execute(query)
+                params = ()
+            cursor.execute(query, params)
             rows = cursor.fetchall()
             cursor.close()
             conn.close()
@@ -738,12 +752,47 @@ def verPagos():
             print(f"Error: {err}")
             return []
 
-    def actualizar_treeview(filtro_reciente=False, filtro_mensualidad=False):
+    def actualizar_treeview(fecha_inicio=None, fecha_fin=None, filtro_reciente=False, filtro_mensualidad=False):
         for item in tree.get_children():
             tree.delete(item)
-        rows = obtener_datos(filtro_reciente, filtro_mensualidad)
+        rows = obtener_datos(fecha_inicio, fecha_fin, filtro_reciente, filtro_mensualidad)
         for row in rows:
             tree.insert("", "end", values=(row["id"], row["NombreCliente"], row["Mensualidad"], row["FechaPago"]))
+
+    def exportar_a_pdf(datos):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+
+        # Agregar el logotipo
+        pdf.image("icons/agua.png", x=10, y=8, w=33)  # Ajusta la ruta y tamaño según sea necesario
+        pdf.ln(40)  # Espacio después del logotipo
+
+        # Crear el encabezado de la tabla
+        pdf.cell(200, 10, txt="Pagos Recientes", ln=True, align='C')
+        pdf.cell(40, 10, txt="No Recibo", border=1)
+        pdf.cell(60, 10, txt="NombreCliente", border=1)
+        pdf.cell(40, 10, txt="Mensualidad", border=1)
+        pdf.cell(50, 10, txt="FechaPago", border=1)
+        pdf.ln()
+
+        # Agregar los datos de los pagos
+        for row in datos:
+            pdf.cell(40, 10, txt=str(row["id"]), border=1)
+            pdf.cell(60, 10, txt=row["NombreCliente"], border=1)
+            pdf.cell(40, 10, txt=str(row["Mensualidad"]), border=1)
+            pdf.cell(50, 10, txt=row["FechaPago"].strftime('%Y-%m-%d'), border=1)
+            pdf.ln()
+
+        # Guardar el archivo PDF
+        pdf.output("pagos_recientes.pdf")
+        print("PDF exportado con éxito")
+
+    def exportar_filtrados_a_pdf():
+        fecha_inicio = date_inicio.get_date().strftime('%Y-%m-%d')
+        fecha_fin = date_fin.get_date().strftime('%Y-%m-%d')
+        datos_filtrados = obtener_datos(fecha_inicio, fecha_fin)
+        exportar_a_pdf(datos_filtrados)
 
     crearUsuarioWindow = CTkToplevel(app)
     crearUsuarioWindow.title("Ver Pago")
@@ -757,7 +806,7 @@ def verPagos():
     frame2 = CTkFrame(master=crearUsuarioWindow, corner_radius=0, fg_color=color_azul)
 
     recibo = CTkLabel(master=frame2, text="", image=imagenes["pago"])
-    recibo.place(relx=0.2, rely=0.1)
+    recibo.place(relx=0.3, rely=0.1)
 
     frame1.place(relx=0.0, rely=0.0, relwidth=0.7, relheight=1.0)
     frame2.place(relx=0.7, rely=0.0, relwidth=0.3, relheight=1.0)
@@ -777,6 +826,25 @@ def verPagos():
 
     tree.pack(fill=tk.BOTH, expand=True)
 
+    # Crear widgets de selección de fecha
+    date_inicio_label = CTkLabel(master=frame2, text="Fecha Inicio")
+    date_inicio_label.place(relx=0.5, rely=0.3, anchor=tk.CENTER)
+    date_inicio = DateEntry(master=frame2, width=12, background='darkblue', foreground='white', borderwidth=2)
+    date_inicio.place(relx=0.5, rely=0.35, anchor=tk.CENTER)
+
+    date_fin_label = CTkLabel(master=frame2, text="Fecha Fin")
+    date_fin_label.place(relx=0.5, rely=0.4, anchor=tk.CENTER)
+    date_fin = DateEntry(master=frame2, width=12, background='darkblue', foreground='white', borderwidth=2)
+    date_fin.place(relx=0.5, rely=0.45, anchor=tk.CENTER)
+
+    # Crear un botón para filtrar los pagos por rango de fechas
+    btn_filtrar_fechas = CTkButton(master=frame2, text="Filtrar por Fechas", command=lambda: actualizar_treeview(date_inicio.get_date().strftime('%Y-%m-%d'), date_fin.get_date().strftime('%Y-%m-%d')))
+    btn_filtrar_fechas.place(relx=0.5, rely=0.55, anchor=tk.CENTER)
+
+    # Crear un botón para exportar los pagos filtrados a PDF
+    btn_exportar_pdf = CTkButton(master=frame2, text="Exportar Filtrados a PDF", command=exportar_filtrados_a_pdf)
+    btn_exportar_pdf.place(relx=0.5, rely=0.65, anchor=tk.CENTER)
+
     # Crear un botón para filtrar los pagos más recientes
     btn_filtrar_recientes = CTkButton(master=frame2, text="Mostrar más recientes", command=lambda: actualizar_treeview(filtro_reciente=True))
     btn_filtrar_recientes.place(relx=0.5, rely=0.8, anchor=tk.CENTER)
@@ -789,8 +857,6 @@ def verPagos():
     actualizar_treeview()
 
     crearUsuarioWindow.mainloop()
-
-
 def funcion():
     crearUsuarioWindow = CTkToplevel(app)
     crearUsuarioWindow.title("Crear Pago")
@@ -986,12 +1052,12 @@ def insertar_pago(id_factura, fecha_pago, monto, metodo_pago):
         messagebox.showerror("Error", f"Error al guardar los datos: {err}")
 
 
-def crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad):
+def crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad, estado):
     try:
         db = connect_db()
         cursor = db.cursor()
-        sql = "INSERT INTO clientes (Nombre, Direccion, Telefono, Equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-        val = (nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad)
+        sql = "INSERT INTO clientes (Nombre, Direccion, Telefono, Equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad, estado) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        val = (nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad, estado)
         cursor.execute(sql, val)
         db.commit()
         cursor.close()
@@ -1002,40 +1068,88 @@ def crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaI
 
 
 def fetch_data():
-
     db = connect_db()
     cursor = db.cursor()
-    cursor.execute("SELECT * FROM clientes")
+    cursor.execute("SELECT id, Nombre, Direccion, Telefono, ProximoPago, estado FROM clientes")
     data = cursor.fetchall()
     cursor.close()
     db.close()
     return data
 
+def exportar_clientes_a_pdf():
+    data = fetch_data()
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Agregar el logotipo si es necesario
+    pdf.image("icons/agua.png", x=10, y=8, w=33)
+    pdf.ln(40)  # Espacio después del logotipo
+
+    # Crear el encabezado de la tabla
+    pdf.cell(200, 10, txt="Listado de Clientes", ln=True, align='C')
+    encabezados = ["ID", "Nombre", "Dirección", "Teléfono", "Equipos", "Ip", "Velocidad", "Fecha Instalacion", "Proximo Pago", "Mensualidad"]
+    for encabezado in encabezados:
+        pdf.cell(40, 10, txt=encabezado, border=1)
+    pdf.ln()
+
+    # Agregar los datos de los clientes
+    for row in data:
+        for item in row:
+            pdf.cell(40, 10, txt=str(item), border=1)
+        pdf.ln()
+
+    # Guardar el archivo PDF
+    pdf.output("clientes.pdf")
+    print("PDF exportado con éxito")
+
 def display_data(frame):
-    # Create Treeview
-    tree = ttk.Treeview(frame, columns=("ID", "Nombre", "Dirección", "Teléfono", "Equipos", "Ip", "Velocidad", "Fecha Instalacion", "Proximo Pago", "Mensualidad"), show='headings')
+    # Crear el Treeview
+    tree = ttk.Treeview(frame, columns=("ID", "Nombre", "Dirección", "Teléfono", "Proximo Pago", "estado"), show='headings')
     tree.heading("ID", text="ID")
     tree.heading("Nombre", text="Nombre")
     tree.heading("Dirección", text="Dirección")
     tree.heading("Teléfono", text="Telefono")
-    tree.heading("Equipos", text="Equipos")
-    tree.heading("Ip", text="Ip")
-    tree.heading("Velocidad", text="Velocidad")
-    tree.heading("Fecha Instalacion", text="Fecha Instalacion")
     tree.heading("Proximo Pago", text="Proximo Pago")
-    tree.heading("Mensualidad", text="Mensualidad")
+    tree.heading("estado", text="Estado")
 
-    # Insert data into Treeview
+    # Definir estilos para los diferentes estados
+    style = ttk.Style()
+    style.configure("Treeview.activated", background="white", foreground="green")
+    style.configure("Treeview.suspended", background="white", foreground="red")
+    style.configure("Treeview.none", background="white", foreground="blue")
+
+    # Insertar datos en el Treeview
     def refresh_data():
         for i in tree.get_children():
             tree.delete(i)
         data = fetch_data()
         for row in data:
-            tree.insert("", "end", values=row)
+            tags = []
+            estado = row[5]
+            if estado == "activado":
+                tags.append('activated')
+            elif estado == "suspendido":
+                tags.append('suspended')
+            elif estado is None or estado.lower() == "none":
+                tags.append('none')
+            tree.insert("", "end", values=row, tags=tags)
     
     refresh_data()
 
-    # Add right-click menu
+    tree.tag_configure('activated', foreground='white', background='green')
+    tree.tag_configure('suspended', foreground='white', background='red')
+    tree.tag_configure('none', foreground='white', background='gray')
+
+    def fixed_map(option):
+        # Fix for setting text colour for row
+        return [elm for elm in style.map("Treeview", query_opt=option) if elm[:2] != ("!disabled", "!selected")]
+
+    style.map("Treeview", foreground=fixed_map("foreground"))
+
+    tree.pack(fill='both', expand=True)
+
+    # Añadir menú contextual
     def do_popup(event):
         try:
             popup.tk_popup(event.x_root, event.y_root, 0)
@@ -1044,12 +1158,11 @@ def display_data(frame):
     
     popup = Menu(tree, tearoff=0)
     popup.add_command(label="Actualizar", command=refresh_data)
+    popup.add_command(label="Exportar a PDF", command=exportar_clientes_a_pdf)
+    popup.add_command(label="Registrar Pago", command=registrarPago)
+    popup.add_command(label="Crear Cliente", command=crearUsuario)
     
     tree.bind("<Button-3>", do_popup)
-    
-    # Configure Treeview layout
-    tree.pack(expand=True, fill='both')
-
 
 def buscarClienteEditar():
     crearUsuarioWindow = CTkToplevel(app)
@@ -1288,11 +1401,11 @@ def menuConfiguracionRed():
     )
     btnReiniciar = CTkButton(
         master=menuConfiguracionRed,
-        text="Reiniciar Microtik",
+        text="Cortes Automaticos",
         width=170,
         height=20,
         image=images["reiniciar"],
-        command=enDesarrollo
+        command=iniciarTarea
     )
     btnReiniciar.grid(
         row=1,
@@ -1301,6 +1414,197 @@ def menuConfiguracionRed():
         pady=10
     )
     menuConfiguracionRed.mainloop()
+
+def configuracionOpcion():
+    configSQL = CTkToplevel(app)
+    configSQL.title("Configurar SQL")
+    configSQL.geometry("800x500")
+    configSQL.resizable(False, False)
+    imagenes = load_images()
+
+    frame2 = CTkFrame(master=configSQL, corner_radius=0, fg_color=color_azul)
+
+    recibo = CTkLabel(master=frame2, text="", image=imagenes["servidor"])
+    recibo.pack()
+
+    # Función para cargar la configuración desde el archivo JSON
+    def load_config():
+        with open(config_file, 'r') as file:
+            return json.load(file)
+
+    # Función para guardar la configuración en el archivo JSON
+    def save_config(config):
+        with open(config_file, 'w') as file:
+            json.dump(config, file, indent=4)
+
+    # Función para actualizar la configuración
+    def update_config():
+        config = {
+            'user': entUsuario.get(),
+            'password': entPassword.get(),
+            'host': entHost.get(),
+            'database': entDatabase.get()
+        }
+        save_config(config)
+        messagebox.showinfo("Configuración", "Configuración guardada con éxito.")
+
+    lbUsuario = CTkLabel(
+        master=configSQL,
+        text="Usuario",
+        text_color=color_blanco,
+        font=subtitulo
+    )
+    entUsuario = CTkEntry(
+        master=configSQL,
+        placeholder_text="dni",
+        width=200,
+        height=20
+    )
+
+    lbPassword = CTkLabel(
+        master=configSQL,
+        text="Password",
+        text_color=color_blanco,
+        font=subtitulo
+    )
+    entPassword = CTkEntry(
+        master=configSQL,
+        placeholder_text="Password1234",
+        width=200,
+        height=20
+    )
+
+    lbHost = CTkLabel(
+        master=configSQL,
+        text="Host",
+        text_color=color_blanco,
+        font=subtitulo
+    )
+    entHost =CTkEntry(
+        master=configSQL,
+        placeholder_text="192.168.6.244",
+        width=200,
+        height=20
+    )
+
+    lbDatabase = CTkLabel(
+        master=configSQL,
+        text="Database",
+        text_color=color_blanco,
+        font=subtitulo
+    )
+    entDatabase = CTkEntry(
+        master=configSQL,
+        placeholder_text="Alpha",
+        width=200,
+        height=20
+    )
+
+
+    lbUsuario.grid(
+        row=0,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    entUsuario.grid(
+        row=0,
+        column=1,
+        padx=10,
+        pady=10
+    )
+
+    lbPassword.grid(
+        row=1,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    entPassword.grid(
+        row=1,
+        column=1,
+        padx=10,
+        pady=10
+    )
+
+    lbHost.grid(
+        row=2,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    entHost.grid(
+        row=2,
+        column=1,
+        padx=10,
+        pady=10
+    )
+
+    lbDatabase.grid(
+        row=3,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    entDatabase.grid(
+        row=3,
+        column=1,
+        padx=10,
+        pady=10
+    )
+
+    btnGUardar = CTkButton(
+        master=frame2,
+        text="Conectar",
+        width=150,
+        height=20,
+        command=update_config
+    )
+    btnGUardar.place(
+        relx=0.2,
+        rely=0.9
+    )
+    frame2.place(
+    relx=0.7,
+    rely=0.0,
+    relwidth=0.3,
+    relheight=1.0
+    )
+    configSQL.mainloop()
+# Configuración de la conexión SSH
+def iniciarTarea():
+    # Leer el archivo JSON
+    with open('comandos.json') as f:
+        data = json.load(f)
+
+    # Extraer los datos del archivo JSON
+    hostname = data['hostname']
+    port = data['port']
+    username = data['username']
+    password = data['password']
+    commands = data['comandos']
+
+    try:
+        # Crear el cliente SSH
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname, port, username, password)
+
+        # Ejecutar los comandos
+        for command in commands:
+            stdin, stdout, stderr = ssh.exec_command(command)
+            print(f"Output for command '{command}':")
+            print(stdout.read().decode())
+            err = stderr.read().decode()
+            if err:
+                print(f"Error for command '{command}': {err}")
+
+    except Exception as e:
+        print(f'Error: {e}')
+
+    finally:
+        # Cerrar la conexión SSH
+        ssh.close()
 
 # DEFINIMOS LOS BOTONES DE ACCION DENTRO DEL BANNER
 crear_usuarioBtn = CTkButton(
@@ -1334,7 +1638,7 @@ configuracion = CTkButton(
     master=banner,
     text="Ajustes",
     image=images["configuraciones"],
-    command=enDesarrollo
+    command=configuracionOpcion
 )
 
 # DEFINIMOS LAS POSICIONES DE LOS WIDGETS
