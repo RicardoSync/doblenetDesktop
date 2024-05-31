@@ -1,8 +1,6 @@
 from customtkinter import *
 from tkinter import ttk
-from PIL import Image
 import mysql.connector
-from PIL import Image, ImageTk
 from tkinter import messagebox
 from tkinter import Menu
 from PIL import Image, ImageDraw, ImageFont
@@ -154,7 +152,7 @@ def registrarPago():
 
 
         dna = cliente_id
-        nombre = cliente_id
+        nombre = entNombre.get()
         fecha = fecha_pago
         no_recibo = fecha_pago + timedelta(days=31)
         concepto = "Servicio de internet"
@@ -163,7 +161,8 @@ def registrarPago():
         archivo = dna + "." + monto + ".png"
         archivo_salida = archivo
 
-        crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, id_transaccion, archivo_salida)
+        #crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, id_transaccion, archivo_salida)
+        crear_factura(dna, nombre, fecha, monto, no_recibo, concepto, folio, id_transaccion)
         messagebox.showinfo("Pago Registrado", "Cliente registrado con exito")
 
     recibo = CTkLabel(master=frame2, text="", image=imagenes["pago"])
@@ -370,35 +369,66 @@ def crearUsuario():
         Mensualidad = entMensualidad.get()
         estado = "activado"
         crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaInstalacion, ProximoPago, Mensualidad, estado)
+        limpiar()
 
     def salir():
         crearUsuarioWindow.destroy()
 
+    
     def buscarCliente():
-            cliente_id = entIP.get()
-            conn = connect_db()
-            cursor = conn.cursor(dictionary=True)
+        cliente_id = entId.get()
+        cliente_nombre = entName.get()
+        
+        if not cliente_id and not cliente_nombre:
+            messagebox.showinfo("Error", "Por favor ingresa un ID o un nombre")
+            return
+
+        conn = connect_db()
+        cursor = conn.cursor(dictionary=True)
+        
+        if cliente_id:
             cursor.execute("SELECT Nombre, Direccion, Telefono, Equipos, Ip, Velocidad, Mensualidad FROM clientes WHERE id = %s", (cliente_id,))
-            cliente = cursor.fetchone()
-            if cliente:
-                #entName.delete(0, 'end')
-                entName.insert(0, cliente['Nombre'])
-                entDireccion.insert(0, cliente['Direccion'])
-                entTelefono.insert(0, cliente['Telefono'])
-                entVelocidad.insert(0, cliente['Velocidad'])
-                entIpMicrotik.insert(0, cliente['Ip'])
-                equiposOpctions.insert(0, cliente['Equipos'])
-                entMensualidad.insert(0, cliente['Mensualidad'])
-                
-            else:
-                messagebox.showerror("Error", "Cliente no encontrado")
-            cursor.close()
-            conn.close()
-            conn.close()
+        elif cliente_nombre:
+            cursor.execute("SELECT id, Nombre, Direccion, Telefono, Equipos, Ip, Velocidad, Mensualidad FROM clientes WHERE Nombre = %s", (cliente_nombre,))
+
+        cliente = cursor.fetchone()
+        
+        if cliente:
+            entId.delete(0, cliente['id'])
+            entId.insert(0, cliente.get('id', ''))
+            entName.delete(0, 'end')
+            entName.insert(0, cliente['Nombre'])
+            entDireccion.delete(0, 'end')
+            entDireccion.insert(0, cliente['Direccion'])
+            entTelefono.delete(0, 'end')
+            entTelefono.insert(0, cliente['Telefono'])
+            entVelocidad.delete(0, 'end')
+            entVelocidad.insert(0, cliente['Velocidad'])
+            entIpMicrotik.delete(0, 'end')
+            entIpMicrotik.insert(0, cliente['Ip'])
+            equiposOpctions.delete(0, 'end')
+            equiposOpctions.insert(0, cliente['Equipos'])
+            entMensualidad.delete(0, 'end')
+            entMensualidad.insert(0, cliente['Mensualidad'])
+        else:
+            messagebox.showinfo("No encontrado", "El cliente no se encontró")
+
+        cursor.close()
+        conn.close()
+
+
+    def limpiar():
+        entId.delete(0, END)
+        entName.delete(0, END)
+        entDireccion.delete(0, END)
+        entTelefono.delete(0, END)
+        entVelocidad.delete(0, END)
+        entIpMicrotik.delete(0, END)
+
     def actualizar():
         conn = connect_db()
         cursor = conn.cursor()
-        cliente_id = entIP.get()  # Asegúrate de obtener el ID del cliente correctamente
+        cliente_id = entId.get()  # Asegúrate de obtener el ID del cliente correctamente
         Nombre = entName.get()
         Direccion = entDireccion.get()
         Telefono = entTelefono.get()
@@ -419,6 +449,7 @@ def crearUsuario():
         messagebox.showinfo("Listo", "Cliente Actualizado")
 
 
+
     usuario = CTkLabel(master=frame2, text="", image=imagenes["usuario"])
     usuario.place(
         relx=0.3,
@@ -435,6 +466,19 @@ def crearUsuario():
         relx=0.2,
         rely=0.3
     )
+
+    btnLimpiar = CTkButton(
+        master=frame2,
+        text="Limpiar",
+        width=200,
+        height=20,
+        command=limpiar
+    )
+    btnLimpiar.place(
+        relx=0.2,
+        rely=0.4
+    )
+
     fondo = CTkLabel(master=frame1, text="", image=imagenes["fondo"])
     fondo.place(
         relx=0.5,
@@ -490,18 +534,36 @@ def crearUsuario():
         width=200,
         height=20
     )
+
     lbComunidad = CTkLabel(
         master=frame1,
         text="Comunidad",
         text_color=color_blanco,
         font=subtitulo
     )
-    entComunidad = CTkEntry(
+    entComunidad= CTkComboBox(
         master=frame1,
-        placeholder_text="Loreto",
+        values=[
+            "San Marcos",
+            "Tierra Blanca",
+            "Loreto",
+            "Crisóstomos",
+            "Colonia Hidalgo (El Tecolote)",
+            "Norias de Guadalupe",
+            "Santa María de los ángeles",
+            "Ejido Hidalgo",
+            "San Blas",
+            "El Lobo",
+            "La Alquería",
+            "La Concepción",
+            "Bimbaletes",
+
+        ],
         width=240,
         height=20
     )
+
+
     lbMicrotikIp = CTkLabel(
         master=frame1,
         text="Ip Cliente",
@@ -518,9 +580,15 @@ def crearUsuario():
         text="Equipos",
         font=subtitulo
     )
-    equiposOpctions = CTkEntry(
+    equiposOpctions = CTkComboBox(
         master=frame1,
-        placeholder_text="2",
+        values=[
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        ],
         width=240,
         height=20
     )
@@ -529,24 +597,28 @@ def crearUsuario():
         text="Mensualidad",
         font=subtitulo
     )
-    entMensualidad = CTkEntry(
+    entMensualidad = CTkComboBox(
         master=frame1,
-        placeholder_text="400.00",
-        width=200,
-        height=20
+        values=[
+            "250.00",
+            "300.00",
+            "350.00",
+            "400.00"
+        ]
     )
-    lbIP = CTkLabel(
+    lbId = CTkLabel(
         master=frame1,
-        text="ID Search",
+        text="Id Busqueda",
         text_color=color_blanco,
         font=subtitulo
     )
-    entIP = CTkEntry(
+    entId = CTkEntry(
         master=frame1,
         placeholder_text="2",
-        width=220,
+        width=200,
         height=20
     )
+
 
     lbNota = CTkLabel(
         master=frame2,
@@ -580,18 +652,7 @@ def crearUsuario():
         height=30,
         command=buscarCliente
     )
-    entIP.grid(
-        row=4,
-        column=1,
-        padx=10,
-        pady=10
-    )
-    lbIP.grid(
-        row=4,
-        column=0,
-        padx=10,
-        pady=10
-    )
+
 
     lbName.grid(
         row=0,
@@ -689,13 +750,25 @@ def crearUsuario():
         padx=10,
         pady=10
     )
+    lbId.grid(
+        row=4,
+        column=0,
+        padx=10,
+        pady=10
+    )
+    entId.grid(
+        row=4,
+        column=1,
+        padx=10,
+        pady=10
+    )
     lbNota.place(
         relx=0.1,
-        rely=0.4
+        rely=0.5
     )
     nota.place(
         relx=0.1,
-        rely=0.5
+        rely=0.6
     )
     btnGuardar.place(
         relx=0.1,
@@ -1062,7 +1135,7 @@ def crear_usuario_db(nombre, direccion, telefono, equipos, Ip, Velocidad, FechaI
         db.commit()
         cursor.close()
         db.close()
-        messagebox.showinfo("Éxito", "Datos guardados exitosamente")
+
     except mysql.connector.Error as err:
         messagebox.showerror("Error", f"Error al guardar los datos: {err}")
 
@@ -1164,79 +1237,33 @@ def display_data(frame):
     
     tree.bind("<Button-3>", do_popup)
 
-def buscarClienteEditar():
-    crearUsuarioWindow = CTkToplevel(app)
-    crearUsuarioWindow.title("Crear Recibo")
-    crearUsuarioWindow.geometry("700x300")
-    crearUsuarioWindow.resizable(False, False)
+def crear_factura(dna, nombre, fecha, monto, no_recibo, concepto, folio, id_transaccion):
+    # Crear el objeto PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
 
-    imagenes = load_images()
+    # Agregar el logotipo
+    pdf.image("icons/agua.png", x=10, y=8, w=33)  # Ajusta la ruta y tamaño según sea necesario
+    pdf.ln(40)  # Espacio después del logotipo
 
-    #Definimos los frames
-    frame1 = CTkFrame(master=crearUsuarioWindow, corner_radius=0, fg_color=color_negro)
-    frame2 = CTkFrame(master=crearUsuarioWindow, corner_radius=0, fg_color=color_azul)
+    # Encabezado
+    pdf.cell(200, 10, txt="Recibo de Pago", ln=True, align='C')
 
+    # Información del recibo
+    pdf.cell(100, 10, txt=f"No. de Recibo: {no_recibo}", ln=True)
+    pdf.cell(100, 10, txt=f"Nombre: {nombre}", ln=True)
+    pdf.cell(100, 10, txt=f"DNA: {dna}", ln=True)
+    pdf.cell(100, 10, txt=f"Fecha: {fecha}", ln=True)
+    pdf.cell(100, 10, txt=f"Monto: ${monto}", ln=True)
+    pdf.cell(100, 10, txt=f"Concepto: {concepto}", ln=True)
+    pdf.cell(100, 10, txt=f"Folio: {folio}", ln=True)
+    pdf.cell(100, 10, txt=f"ID de Transacción: {id_transaccion}", ln=True)
 
-    usuario = CTkLabel(master=frame2, text="", image=imagenes["editar"])
-    fondo = CTkLabel(master=frame1, text="", image=imagenes["fondo"])
-    fondo.place(
-        relx=0.3,
-        rely=0.3
-    )
-
-    btnGenerarPago = CTkButton(
-        master=frame1,
-        text="Crear Pago",
-        width=200,
-        height=20
-    )
-
-    lbIdFactura = CTkLabel(
-        master=frame1,
-        text="ID Factura",
-        text_color=color_blanco,
-        font=subtitulo
-    )
-    entFactura = CTkEntry(
-        master=frame1,
-        placeholder_text="9010294",
-        width=340,
-        height=20
-    )
-    lbIdFactura.grid(
-        row=0,
-        column=0,
-        padx=10,
-        pady=10
-    )
-    entFactura.grid(
-        row=1,
-        column=0,
-        padx=10,
-        pady=10
-    )
-    btnGenerarPago.place(
-        relx=0.1,
-        rely=0.9
-    )
-
-
-    usuario.pack()
-
-    frame1.place(
-        relx=0.0,
-        rely=0.0,
-        relwidth=0.7,
-        relheight=1.0
-    )
-    frame2.place(
-    relx=0.7,
-    rely=0.0,
-    relwidth=0.3,
-    relheight=1.0
-    )
-    crearUsuarioWindow.mainloop() 
-
+    # Guardar el archivo PDF
+    pdf_file = f"recibo_{dna}.pdf"
+    pdf.output(pdf_file)
+    print(f"Recibo guardado como {pdf_file}")
 
 def generar_recibo(id_factura):
     try:
@@ -1314,7 +1341,7 @@ def crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, i
     font_bold = ImageFont.truetype(font_path, 20)
     
     # Título
-    draw.text((width / 2 - 170, 30), "RatonApp Wisplus", font=font_title, fill="black")
+    draw.text((width / 2 - 170, 30), "AmxFiber", font=font_title, fill="black")
     
     # Línea punteada
     draw.line((20, 110, width - 20, 110), fill="black", width=2)
@@ -1325,7 +1352,7 @@ def crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, i
     
     # Caja de cobro de EBANX
     draw.rectangle([150, 160, 450, 200], outline="blue", width=2)
-    draw.text((200, 170), "Cobro RatonApp", font=font_text, fill="black")
+    draw.text((200, 170), "Cobro AmxFiber", font=font_text, fill="black")
     
     # Información de pago
     draw.text((20, 250), f"NOMBRE DE {nombre}", font=font_text, fill="black")
@@ -1346,7 +1373,7 @@ def crear_recibo_imagen(dna, nombre, fecha, monto, no_recibo, concepto, folio, i
     
     # Nota de conservación
     draw.text((width / 2 - 120, 470), "*Conserva el comprobante*", font=font_text, fill="black")
-    draw.text((width / 2 - 120, 500), "Software por Ricardo Escobedo", font=font_text, fill="black")
+    #draw.text((width / 2 - 120, 500), "Software por Ricardo Escobedo", font=font_text, fill="black")
 
 
 

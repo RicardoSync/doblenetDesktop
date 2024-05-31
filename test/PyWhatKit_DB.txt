@@ -1,0 +1,20 @@
+Date: 29/5/2024
+Time: 21:32
+Phone Number: +524921221843
+Message: Mensaje De Prueba
+--------------------
+Date: 29/5/2024
+Time: 21:33
+Phone Number: +524961221843
+Message: Mensaje De Prueba
+--------------------
+Date: 29/5/2024
+Time: 21:35
+Phone Number: +524962006665
+Message: Hola, este es un mensaje automático de prueba.
+--------------------
+Date: 29/5/2024
+Time: 21:37
+Phone Number: wa.me/+524962006665
+Message: Hola, este es un mensaje automático de prueba.
+--------------------

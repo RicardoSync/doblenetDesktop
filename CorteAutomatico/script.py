@@ -2,6 +2,7 @@ import mysql.connector
 from datetime import datetime
 import schedule
 import time
+import requests
 
 # Configuración de la conexión a la base de datos
 db_config = {
@@ -19,6 +20,7 @@ def activar(id, nombre, ip, velocidad):
 def suspender(id, nombre):
     print(f"Suspender: ID={id}, Nombre={nombre}")
 
+
     cliente_id = id
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
@@ -26,6 +28,19 @@ def suspender(id, nombre):
     estado = "suspendido"
     update_estado = "UPDATE clientes SET estado = %s WHERE id = %s"
     cursor.execute(update_estado, (estado, cliente_id))
+
+
+    cursor.execute("SELECT Nombre, Telefono, api FROM clientes WHERE id = %s", (cliente_id,))
+
+    name = 'Nombre'
+    number = 'Telefono'
+    api = 'api'
+    mensaje = "Hola+estimado+" + name + "+solo+para+notificarle+que+por+favor+realice+el+pago+de+su+servicio+para+que+pueda+disfrutar+de+nuestro+servicio."
+    mensaje1 = "+No+es+necesario+que+conteste+este+mensaje+ya+que+es+generado+automaticamente"
+    url1 = "https://api.callmebot.com/whatsapp.php?phone="+number+"&text="+mensaje+mensaje1+"&apikey="+api
+    requests.post(url1)
+    
+
     conn.commit()
     cursor.close()
     conn.close()
