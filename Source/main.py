@@ -395,7 +395,6 @@ def crearUsuario():
         cliente = cursor.fetchone()
         
         if cliente:
-            entId.delete(0, cliente['id'])
             entId.insert(0, cliente.get('id', ''))
             entName.delete(0, 'end')
             entName.insert(0, cliente['Nombre'])
@@ -407,10 +406,6 @@ def crearUsuario():
             entVelocidad.insert(0, cliente['Velocidad'])
             entIpMicrotik.delete(0, 'end')
             entIpMicrotik.insert(0, cliente['Ip'])
-            equiposOpctions.delete(0, 'end')
-            equiposOpctions.insert(0, cliente['Equipos'])
-            entMensualidad.delete(0, 'end')
-            entMensualidad.insert(0, cliente['Mensualidad'])
         else:
             messagebox.showinfo("No encontrado", "El cliente no se encontró")
 
