@@ -2,6 +2,11 @@ from customtkinter import CTkEntry, CTkButton, CTkFrame, CTkTabview, CTk, CTkLab
 from tkinter import ttk
 from consultas import consultarClientes
 
+
+#modulos del sistema
+from md_crear_cliente import agregarCliente
+
+
 # Función para cargar los datos en el Treeview
 def cargar_clientes(tablaClientes):
     # Eliminar elementos existentes en la tabla
@@ -40,17 +45,17 @@ def panelControl(user):
         bannerNabegacion = CTkFrame(navegacionTab.tab("Clientes"), border_width=2, corner_radius=10)
         idEntry = CTkEntry(bannerNabegacion, placeholder_text="Nombre del cliente", border_width=2, corner_radius=10, width=340)
         btnBuscar = CTkButton(bannerNabegacion, text="Buscar cliente", border_width=2, corner_radius=10)
-        btnAgregar = CTkButton(bannerNabegacion, text="Agregar cliente", border_width=2, corner_radius=10)
+        btnAgregar = CTkButton(bannerNabegacion, text="Agregar cliente", border_width=2, corner_radius=10, command=agregarCliente)
 
         # Configuración de la tabla de clientes
         tablaClientes = ttk.Treeview(
             master=navegacionTab.tab("Clientes"),
-            columns=("Nombre", "Apellido", "Direccion", "Telefono", "Email"),
+            columns=("ID", "Nombre", "Apellido", "Direccion", "Telefono", "Email"),
             show="headings"
         )
 
         # Configurar encabezados
-        for col in ("Nombre", "Apellido", "Direccion", "Telefono", "Email"):
+        for col in ("ID", "Nombre", "Apellido", "Direccion", "Telefono", "Email"):
             tablaClientes.heading(col, text=col)
 
 

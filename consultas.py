@@ -6,7 +6,7 @@ def consultarClientes():
     try:
         consulta = conexionDB()
         cursor = consulta.cursor()
-        cursor.execute("SELECT nombre, apellido, direccion, telefono, email FROM clientes")
+        cursor.execute("SELECT id_cliente, nombre, apellido, direccion, telefono, email FROM clientes")
         resultado = cursor.fetchall()
     except Exception as e:
         print(f"Error al consultar clientes: {e}")
